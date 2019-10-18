@@ -1,0 +1,538 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+
+IE582 HW1
+EMRE GÖKÇE
+2018702042
+
+In this homework I used r Markdown and SQL database. I make some sections Hidden. In RMD file details can be displayed
+
+r1(Hidden): In the first step csv tables were read and tables are registered with their spreadshit names.
+```{r 1, echo=FALSE}
+
+bets <- read.csv('C:/Users/emreg/Desktop/Master/IE582/Data/bets.csv', ,sep = ",")
+booking <- read.csv('C:/Users/emreg/Desktop/Master/IE582/Data/booking.csv', ,sep = ",")
+goals <- read.csv('C:/Users/emreg/Desktop/Master/IE582/Data/goals.csv', ,sep = ",")
+matches <- read.csv('C:/Users/emreg/Desktop/Master/IE582/Data/matches.csv', ,sep = ",")
+stats <- read.csv('C:/Users/emreg/Desktop/Master/IE582/Data/stats.csv', ,sep = ",")
+```
+r2(Hidden): This part involves the packages that I will use in the homework.
+```{r 2, echo=FALSE}
+#install.packages('data.table',repos = "http://cran.us.r-project.org")
+#install.packages('plyr',repos = "http://cran.us.r-project.org")
+#install.packages('dplyr',repos = "http://cran.us.r-project.org")
+#install.packages('dbplyr',repos = "http://cran.us.r-project.org")
+#install.packages('sqldf',repos = "http://cran.us.r-project.org")
+#install.packages('RODBC',repos = "http://cran.us.r-project.org")
+
+
+library("RODBC" )
+library("sqldf")
+library("dplyr")
+library("data.table")
+
+```
+r3(Hidden): odbcConnect function reach my database named "IE582_Hw1". And I will be reaching the database with "myConn" name
+
+Querries below send the tables above(csv tables) to SQL. My database will also have these tables anymore
+```{r 3, echo=FALSE}
+#creating an SQL connection named myConn
+myConn <- odbcConnect("IE582_HW1")
+
+#writing the tables to database
+#sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   bets)  DROP TABLE bets")
+#sqlSave(myConn,bets,tablename="bets",rownames = F)
+#sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   booking)  DROP TABLE booking")
+#sqlSave(myConn,booking,tablename="booking",rownames = F)
+#sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   matches)  DROP TABLE matches")
+#sqlSave(myConn,matches,tablename="matches",rownames = F)
+#sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   goals)  DROP TABLE goals")
+#sqlSave(myConn,goals,tablename="goals",rownames = F)
+#sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   statss)  DROP TABLE statss")
+#sqlSave(myConn,stats,tablename="statss",rownames = F)
+```
+r4: By using Select querry I created premierleague data frame. It includes 320 match. To how the template I will be displaying first 10 rows of the frame.
+
+```{r 4}
+#TASK1
+
+#premier league matches are selected as data.frame
+premierleague <- sqlQuery(myConn,"select * From matches m Where m.league_id=148  ")
+premierleague <- as.data.frame((premierleague))
+
+premierleague[1:10,1:5] #representing first 10 rows to show the template - Total 320 Rows
+```
+
+ANSWER OF TASK 1.1
+a. Home Score(goals)
+b. Away Score(goals)
+c. Home Score(goals)– Away Score(goals)
+
+(r pressure1):First histogram shows correspond a, Second histgram b and third one c.
+
+```{r pressure1, echo=FALSE}
+hist(premierleague$match_hometeam_score + 0.00001 ,breaks=12,xlab="Home Goals",ylab="Number Of Games",main="Task 1,a",ylim=c(0,120))
+hist(premierleague$match_awayteam_score + 0.00001,breaks=12,xlab="Away Goals",ylab="Number Of Games",main="Task 1,b",ylim=c(0,130))
+hist((premierleague$match_hometeam_score - premierleague$match_awayteam_score + 0.00001),breaks=24,xlab="Home Goals - Away Goals",ylab="Number Of Games",main="Task 1,c")
+
+```
+
+ANSWER OF TASK 1.2
+
+(r pressure 2): Figures below show that the distribution fit to Poisson distribution.Blue line corresponds to expectation of related bins under the assumption of Poisson distribution 
+
+```{r pressure2, echo=FALSE}
+#TASK 1.2
+hg <- premierleague$match_hometeam_score
+h<-hist(hg, breaks=12, col="red", xlab="Home Goals",
+        main="Histogram with Poisson Curve",ylim=c(0,120))
+xfit<-seq(min(hg),max(hg),length=40)
+yfit<-dpois(round(xfit),mean(hg))*length(hg)
+lines(xfit, yfit, col="blue", lwd=2)
+
+ag <- premierleague$match_awayteam_score
+h<-hist(ag, breaks=12, col="red", xlab="Away Goals",
+        main="Histogram with Poisson Curve",ylim=c(0,120))
+xfit<-seq(min(ag),max(ag),length=40)
+yfit<-dpois(round(xfit),mean(ag))*length(ag)
+lines(xfit, yfit, col="blue", lwd=2)
+#based on figures below we can say that both converges to Poisson distrbution. It is consistent with Poisson distribution claim.
+```
+TASK 2
+
+r5(Hidden):In the first part I filter the data of 4 bookmakers which are Interwetten.es,Titanbet,ComeOn and Jetbull
+```{r 5, echo=FALSE}
+
+#TASK2
+FourBookMakers_RawData <- bets [(bets$odd_bookmakers=="Interwetten.es"| 
+                         bets$odd_bookmakers=="Titanbet"|
+                         bets$odd_bookmakers=="ComeOn"| 
+                         bets$odd_bookmakers=="Jetbull")
+                        &
+                          (bets$variable == "odd_1"|
+                           bets$variable == "odd_2"| 
+                          bets$variable == "odd_x"),]
+
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   FourBookMakers_RawData)  DROP TABLE FourBookMakers_RawData")
+sqlSave(myConn,FourBookMakers_RawData,tablename = "FourBookMakers_RawData",rownames = F)
+```
+r6:  Group by query removes duplicates of epoch. Some bookmakers may have more than one bet for same match. In such cases my query consider the latest data_entry. Namely, when bookmaker update the odds, the last one is evaluated, others are omitted.
+
+```{r 6}
+FourBookMakers <- sqlQuery(myConn,"SELECT [match_id]
+      ,[odd_bookmakers]
+      ,[variable]
+      ,MAX([value]) as value
+  FROM [FourBookMakers_RawData]
+  GROUP BY [match_id] ,[odd_bookmakers] ,[variable]")
+
+FourBookMakers[1:10,] # top 10 of 16350 is shown. 
+```
+
+r7: The query performs pivotting. FourBookmakers have 1 bet for each row. The querry brings three value (odd_1,odd_2,odd_x) to the same row.  
+```{r 7}
+#this querry pivots the variable creates table with columns of match_id , odd_1,odd_2,odd_x
+#Prob_odd columns correspond the answer of Task 2.1 
+#Norm_odd columns correspond the answer of Task 2.2
+match_detail_Raw <-
+sqlQuery(myConn,"Select fbm.match_id,
+       fbm.odd_bookmakers,
+	   m.result,
+	   fbm.value AS odd_1,
+	   (Select value 
+	    FROM FourBookMakers_RawData fbm2 
+		WHERE fbm2.match_id = fbm.match_id AND fbm2.odd_bookmakers = fbm.odd_bookmakers AND fbm2.variable = 'odd_2') AS odd_2,
+	   (Select value 
+	    FROM FourBookMakers_RawData fbm3 
+	    WHERE fbm3.match_id = fbm.match_id AND fbm3.odd_bookmakers = fbm.odd_bookmakers AND fbm3.variable = 'odd_x') AS odd_x 
+from FourBookMakers_RawData fbm
+INNER JOIN 
+(Select m.match_id AS match_id,
+(CASE WHEN m.match_hometeam_score - m.match_awayteam_score > 0 THEN 1 
+      WHEN m.match_hometeam_score - m.match_awayteam_score = 0 THEN 0 
+	  ELSE 2 END) AS result,
+	  ISNULL(m.match_hometeam_extra_score,0) AS HomeExtraScore,
+	  ISNULL(m.match_awayteam_extra_score,0) AS AwayExtraScore
+From Matches m
+Where m.league_id = 148) m ON fbm.match_id = m.match_id AND fbm.variable = 'odd_1'")
+match_detail_Raw[1:8,]  #Total 1076 Rows
+```
+
+ANSWER 2.1 & 2.2
+
+r8: 1,Calculate the P(home win), P(tie) and P(away win) by P(x) = 1/odd.  These probabilities are calculated as Prob_odd1,Prob_odd2 and Prob_oddx
+
+2.Normalization probabilities are calculated  as Norm_odd1,Norm_odd2 and Norm_oddx
+
+These two kind probabilities are loaded to match_detail data frame. I will be displaying first 50 rows
+
+```{r 8}
+#2.1 and 2.2 cont
+#Normalized probabilities and Probablities are calculated
+#Calculation details are as follows:
+match_detail <- cbind(match_detail_Raw, 
+             Norm_odd1 = match_detail_Raw$odd_1 / 
+               (match_detail_Raw$odd_1+match_detail_Raw$odd_2+match_detail_Raw$odd_x),
+             Norm_odd2 = match_detail_Raw$odd_2 / 
+               (match_detail_Raw$odd_1+match_detail_Raw$odd_2+match_detail_Raw$odd_x),
+             Norm_oddx = match_detail_Raw$odd_x / 
+               (match_detail_Raw$odd_1+match_detail_Raw$odd_2+match_detail_Raw$odd_x),
+             Prob_odd1 = 1/match_detail_Raw$odd_1,
+             Prob_odd2 = 1/match_detail_Raw$odd_2,
+             Prob_oddx = 1/match_detail_Raw$odd_x,
+             dif = 1/match_detail_Raw$odd_1-1/match_detail_Raw$odd_2)
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   match_detail)  DROP TABLE match_detail")
+sqlSave(myConn,match_detail,tablename = "match_detail",rownames = F)
+match_detail[1:50,c(1,2,7,8,9,10,11,12)]  #Total 1076 Rows
+
+```
+
+r9: "dif" column in match_detail keeps P(home) - P(away) information. I created 10 bins for this range and add Interval infromation to match_detail_Interval data frame. First 50 rows are displayed.
+```{r 9}
+#2.3
+#Intervals are added to match_detail
+#Interval columns show the intervals from 1 to 10. Interval(0.8,1) corresponds to 10, Interval(-1,-0.8) corresponds to to 1
+match_detail_Interval <- 
+  sqlQuery(myConn,"SELECT m.*
+           ,CASE WHEN dif < -0.8 THEN 1
+           WHEN dif < -0.6 THEN 2
+           WHEN dif < -0.4 THEN 3
+           WHEN dif < -0.2 THEN 4
+           WHEN dif <  0   THEN 5
+           WHEN dif <  0.2 THEN 6
+           WHEN dif <  0.4 THEN 7
+           WHEN dif <  0.6 THEN 8
+           WHEN dif <  0.8 THEN 9
+           ELSE 10	END AS Interval
+           FROM [match_detail] m")
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   match_detail_Interval)  DROP TABLE match_detail_Interval")
+sqlSave(myConn,match_detail_Interval,tablename = "match_detail_Interval",rownames = F)
+match_detail_Interval[1:50,] #representing first 50 rows to show the template  Total 1076 Rows
+```
+
+r10: This data frame keep actual probabilities. The query calculates total number of matches and number of tie matches to the related bin. For example in the first bin there is no tie game from 7 match.
+```{r 10}
+#2.3
+#the querry calculates average probability and actual probability
+#Actual Probability is calculated by Draw/Total Match
+stat1 <- sqlQuery(myConn,"Select m1.Interval,
+       m1.Count AS TotalMatch,
+	   ISNULL(m2.Count,0) AS Draw	   
+FROM 
+	(SELECT Interval,
+		   COUNT(Interval) AS Count
+	FROM match_detail_Interval 
+	GROUP BY Interval) m1 
+LEFT JOIN
+	(SELECT Interval,
+		   COUNT(Interval) As Count
+	FROM match_detail_Interval m1
+	Where result = 0
+	GROUP BY Interval) m2
+ON m1.Interval = m2.Interval
+Order By Interval
+")
+
+stat1 <- cbind(stat1,ActProb = stat1$Draw/stat1$TotalMatch)
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   stat1)  DROP TABLE stat1")
+sqlSave(myConn,stat1,tablename = "stat1",rownames = F)
+stat1
+```
+
+r11: This query do the same thing with query r10. Only difference this query have bookmaker detail.
+```{r 11}
+#the querry calculates average probability and actual probability for each odd_bookmaker
+#calculation is sama as above
+stat2 <- sqlQuery(myConn,"Select m1.Interval,
+                  m1.odd_bookmakers,
+                  m1.Count AS TotalMatch,
+                  ISNULL(m2.Count,0) AS Draw	   
+                  FROM 
+                  (SELECT Interval,
+                    odd_bookmakers,
+                    COUNT(Interval) AS Count
+                    FROM match_detail_Interval 
+                    GROUP BY Interval,odd_bookmakers) m1 
+                  LEFT JOIN
+                  (SELECT Interval,
+                    odd_bookmakers,
+                    COUNT(Interval) As Count
+                    FROM match_detail_Interval m1
+                    Where result = 0
+                    GROUP BY Interval,m1.odd_bookmakers) m2
+                  ON m1.Interval = m2.Interval AND m1.odd_bookmakers = m2.odd_bookmakers
+                  Order By odd_bookmakers,Interval")
+
+stat2 <- cbind(stat2,ActProb = stat2$Draw/stat2$TotalMatch)
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   stat2)  DROP TABLE stat2")
+sqlSave(myConn,stat2,tablename = "stat2",rownames = F)
+stat2
+```
+
+r12: This query combines actual probabilities and average tie probabilities of bookmakers.Probability of bookmakers is not Normalized. It is average of 1/odd_x
+```{r 12}
+#2.3
+#Average shows average of odd_bookmakers
+CommanComparison <- sqlQuery(myConn,"Select s.Interval, s.ActProb, mdi.AVerage
+FROM
+(Select Interval, AVG(Prob_oddx) As Average
+  From match_detail_Interval 
+  GROUP BY Interval) mdi
+INNER JOIN 
+stat1 s
+ON mdi.Interval = s.Interval")
+CommanComparison
+```
+
+r13: Query have additionally bookmaker detail.
+
+```{r 13}
+#2.3
+BookmakerComparison <- sqlQuery(myConn,"Select s.Interval, s.odd_bookmakers,  mdi.AVerage, s.ActProb
+FROM
+(Select Interval, AVG(Prob_oddx) As Average,odd_bookmakers
+  From match_detail_Interval 
+  GROUP BY Interval,odd_bookmakers) mdi
+INNER JOIN 
+stat2 s ON 
+ mdi.Interval = s.Interval AND mdi.odd_bookmakers = s.odd_bookmakers
+ ORDER BY odd_bookmakers,Interval")
+BookmakerComparison
+```
+
+ANSWER OF TASK 2.3
+
+(r pressure3)
+Red line shows actual probailities while blue one shows draw probability of bookmaker. This plot shows that in bin 6 and bin 7 , it can be possible to make money in long run. Average return for bin 6 is 1/0.298 = 3.36 . When we calculate expectation 3.36 * (Act Prob) = 3.36*0.327 = 1.097 > 1. Gray items represents 1/odd_x probabilities.
+
+Since blue line is average of gray points they follow similar patterns. The difference come from the phase difference.For example, when x=2, it shows average from P(home)-P(away) between (-0.8,-0.6). However gray points on x=2 are corresponding to -0.6. For this reason in the left tale blue line is below the gray points and in the right tale above. This comment is the case for all plot below so I am not going to repeat the same comment for all.
+```{r pressure3, echo=FALSE}
+#2.3
+# Red line shows actual probailities (I calculated in r12) while blue one shows draw probability of bookmaker(r12). This plot shows that in bin 6 and bin 7 , it can be possible to make money in long run. Average return for bin 6 is 1/0.298 = 3.36 . When we calculate expectation 3.36 * (Act Prob) = 3.36*0.327 = 1.097 > 1. Gray items represents 1/odd_x probabilities. Since blue line is average of gray points they follow similar patterns. The difference come from the phase difference.For example, when x=2, it shows average from P(home)-P(away) between (-0.8,-0.6). However gray points on x=2 are corresponding to -0.6. For this reason in the left tale blue line is below the gray points and in the rşght tale above
+
+plot(x=((match_detail_Interval$Prob_odd1 - match_detail_Interval$Prob_odd2)+1)*5,y=match_detail_Interval$Prob_oddx, xlab = "Interval", ylab = "Y axis title", pch = 1, col="gray",main = "CommanComparison",xlim = c(-1,11),ylim = c(0,0.45), frame = FALSE)   
+
+lines(x=CommanComparison$Interval,y=CommanComparison$AVerage,col="blue",type="o")       
+
+lines(x=CommanComparison$Interval,y=CommanComparison$ActProb,type="o",col="red" )
+       
+
+```
+
+ANSWER OF 2.4
+
+(r pressure4): I repeated same analysis for each bookmaker.For all bookmakers expectation of bin 6 is more than 1 like in the main picture. So although there are differences main picture is almost same all 4 bookmakers.
+
+
+```{r pressure4, echo=FALSE}
+#2.4
+#In the following part, I repeated same analysis for each bookmaker.For all bookmakers expectation of bin 6 is more than 1 like in the main picture.
+
+match_detail_Interval_Interwetten <- as.data.frame(match_detail_Interval[match_detail_Interval$odd_bookmakers =="Interwetten.es",])
+match_detail_Interval_Titanbet <- as.data.frame(match_detail_Interval[match_detail_Interval$odd_bookmakers =="Titanbet",])
+match_detail_Interval_ComeOn <- as.data.frame(match_detail_Interval[match_detail_Interval$odd_bookmakers =="ComeOn",])
+match_detail_Interval_Jetbull <- as.data.frame(match_detail_Interval[match_detail_Interval$odd_bookmakers =="Jetbull",])
+
+BookComparison_Interwetten <- as.data.frame(BookmakerComparison[BookmakerComparison$odd_bookmakers =="Interwetten.es",])
+BookComparison_Titanbet <- as.data.frame(BookmakerComparison[BookmakerComparison$odd_bookmakers =="Titanbet",])
+BookComparison_ComeOn <- as.data.frame(BookmakerComparison[BookmakerComparison$odd_bookmakers =="ComeOn",])
+BookComparison_Jetbull <- as.data.frame(BookmakerComparison[BookmakerComparison$odd_bookmakers =="Jetbull",])
+
+#ComeOn Graph
+plot(x=((match_detail_Interval_ComeOn$Prob_odd1 - match_detail_Interval_ComeOn$Prob_odd2)+1)*5,y=match_detail_Interval_ComeOn$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "ComeOn Comparison",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_ComeOn $Interval,y=BookComparison_ComeOn $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_ComeOn $Interval,y=BookComparison_ComeOn $ActProb,type="o",col="red" )
+
+#Interwetten.es Graph
+plot(x=((match_detail_Interval_Interwetten$Prob_odd1 - match_detail_Interval_Interwetten$Prob_odd2)+1)*5,y=match_detail_Interval_Interwetten$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "Interwetten.es Comparison",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_Interwetten $Interval,y=BookComparison_Interwetten $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_Interwetten $Interval,y=BookComparison_Interwetten $ActProb,type="o",col="red" )
+
+#Jetbull Graph
+plot(x=((match_detail_Interval_Jetbull$Prob_odd1 - match_detail_Interval_Jetbull$Prob_odd2)+1)*5,y=match_detail_Interval_Jetbull$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "JetBull Comparison",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_Jetbull $Interval,y=BookComparison_Jetbull $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_Jetbull $Interval,y=BookComparison_Jetbull $ActProb,type="o",col="red" )
+
+#Titanbet Graph
+plot(x=((match_detail_Interval_Titanbet$Prob_odd1 - match_detail_Interval_Titanbet$Prob_odd2)+1)*5,y=match_detail_Interval_Titanbet$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "Titanbet Comparison",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_Titanbet $Interval,y=BookComparison_Titanbet $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_Titanbet $Interval,y=BookComparison_Titanbet $ActProb,type="o",col="red" )
+
+```
+
+
+
+Task3
+
+r14: query removes the macth including 90+ goals and game with red cards. Row number is reduced from 1076 to 865. And new records are kept in match_detail_Interval_Removed data frame
+```{r 14 }
+
+match_detail_Interval_Removed <- 
+  sqlQuery(myConn,"Select * from match_detail_Interval
+Where match_id NOT IN (
+Select DISTINCT match_id from goals
+Where Left(time,3) = '90+'
+UNION
+Select DISTINCT match_id
+from statss
+WHERE ISNULL(home_Redcards,0) + ISNULL(away_Redcards,0) > 0)")
+
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   match_detail_Interval_Removed)  DROP TABLE match_detail_Interval_Removed")
+sqlSave(myConn,match_detail_Interval_Removed,tablename = "match_detail_Interval_Removed",rownames = F)
+match_detail_Interval_Removed[1:50,] #representing first 50 rows to show the template  Total 875 Rows
+```
+
+r15:Similarly stats1 and stats2 tables are calculated. 
+
+```{r 15}
+#statistics are calculated based on removed data
+stat1_Removed <- sqlQuery(myConn,"Select m1.Interval,
+       m1.Count AS TotalMatch,
+	   ISNULL(m2.Count,0) AS Draw	   
+FROM 
+	(SELECT Interval,
+		   COUNT(Interval) AS Count
+	FROM match_detail_Interval_Removed 
+	GROUP BY Interval) m1 
+LEFT JOIN
+	(SELECT Interval,
+		   COUNT(Interval) As Count
+	FROM match_detail_Interval_Removed m1
+	Where result = 0
+	GROUP BY Interval) m2
+ON m1.Interval = m2.Interval
+Order By Interval
+")
+
+stat1_Removed <- cbind(stat1_Removed,ActProb = stat1_Removed$Draw/stat1_Removed$TotalMatch)
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   stat1_Removed)  DROP TABLE stat1_Removed")
+sqlSave(myConn,stat1_Removed,tablename = "stat1_Removed",rownames = F)
+stat1_Removed
+```
+
+
+```{r 16}
+stat2_Removed <- sqlQuery(myConn,"Select m1.Interval,
+                  m1.odd_bookmakers,
+                  m1.Count AS TotalMatch,
+                  ISNULL(m2.Count,0) AS Draw	   
+                  FROM 
+                  (SELECT Interval,
+                    odd_bookmakers,
+                    COUNT(Interval) AS Count
+                    FROM match_detail_Interval_Removed 
+                    GROUP BY Interval,odd_bookmakers) m1 
+                  LEFT JOIN
+                  (SELECT Interval,
+                    odd_bookmakers,
+                    COUNT(Interval) As Count
+                    FROM match_detail_Interval_Removed m1
+                    Where result = 0
+                    GROUP BY Interval,m1.odd_bookmakers) m2
+                  ON m1.Interval = m2.Interval AND m1.odd_bookmakers = m2.odd_bookmakers
+                  Order By odd_bookmakers,Interval")
+
+
+
+stat2_Removed <- cbind(stat2_Removed,ActProb = stat2_Removed$Draw/stat2_Removed$TotalMatch)
+sqlQuery(myConn,"IF EXISTS(SELECT *  FROM   stat2_Removed)  DROP TABLE stat2_Removed")
+sqlSave(myConn,stat2_Removed,tablename = "stat2_Removed",rownames = F)
+stat2_Removed
+```
+
+```{r 17}
+CommanComparison_Removed <- sqlQuery(myConn,"Select s.Interval, s.ActProb, mdi.AVerage
+FROM
+(Select Interval, AVG(Prob_oddx) As Average
+  From match_detail_Interval_Removed 
+  GROUP BY Interval) mdi
+INNER JOIN 
+stat1_Removed s
+ON mdi.Interval = s.Interval")
+CommanComparison_Removed
+```
+
+```{r 18}
+BookmakerComparison_Removed <- sqlQuery(myConn,"Select s.Interval, s.odd_bookmakers,  mdi.AVerage, s.ActProb
+FROM
+(Select Interval, AVG(Prob_oddx) As Average,odd_bookmakers
+  From match_detail_Interval_Removed 
+  GROUP BY Interval,odd_bookmakers) mdi
+INNER JOIN 
+stat2_Removed s ON 
+ mdi.Interval = s.Interval AND mdi.odd_bookmakers = s.odd_bookmakers
+ ORDER BY odd_bookmakers,Interval")
+BookmakerComparison_Removed
+```
+
+ANSWER OF TASK 3
+
+The plot is similar to the original data frame.There is no significant change between the results 
+
+```{r pressure5, echo=FALSE}
+
+plot(x=((match_detail_Interval_Removed$Prob_odd1 - match_detail_Interval_Removed$Prob_odd2)+1)*5,y=match_detail_Interval_Removed$Prob_oddx, xlab = "Interval", ylab = "Y axis title", pch = 1, col="gray",main = "Comman Comparison (Removed)",xlim = c(-1,11),ylim = c(0,0.45), frame = FALSE)   
+
+lines(x=CommanComparison_Removed$Interval,y=CommanComparison_Removed$AVerage,col="blue",type="o")       
+
+lines(x=CommanComparison_Removed$Interval,y=CommanComparison_Removed$ActProb,type="o",col="red" )
+
+#Plot below shows that output is similar to Task 2.3 . There is no significant change
+```
+
+The plots of bookmakers are again similar to the original data frames.There are no significant difference between the results 
+
+```{r pressure6, echo=FALSE}
+match_detail_Interval_Interwetten_Removed <- as.data.frame(match_detail_Interval_Removed[match_detail_Interval$odd_bookmakers =="Interwetten.es",])
+match_detail_Interval_Titanbet_Removed <- as.data.frame(match_detail_Interval_Removed[match_detail_Interval$odd_bookmakers =="Titanbet",])
+match_detail_Interval_ComeOn_Removed <- as.data.frame(match_detail_Interval_Removed[match_detail_Interval$odd_bookmakers =="ComeOn",])
+match_detail_Interval_Jetbull_Removed <- as.data.frame(match_detail_Interval_Removed[match_detail_Interval$odd_bookmakers =="Jetbull",])
+
+BookComparison_Interwetten_Removed <- as.data.frame(BookmakerComparison_Removed[BookmakerComparison_Removed$odd_bookmakers =="Interwetten.es",])
+BookComparison_Titanbet_Removed <- as.data.frame(BookmakerComparison_Removed[BookmakerComparison_Removed$odd_bookmakers =="Titanbet",])
+BookComparison_ComeOn_Removed <- as.data.frame(BookmakerComparison_Removed[BookmakerComparison_Removed$odd_bookmakers =="ComeOn",])
+BookComparison_Jetbull_Removed <- as.data.frame(BookmakerComparison_Removed[BookmakerComparison_Removed$odd_bookmakers =="Jetbull",])
+
+#ComeOn Graph
+plot(x=((match_detail_Interval_ComeOn_Removed$Prob_odd1 - match_detail_Interval_ComeOn_Removed$Prob_odd2)+1)*5,y=match_detail_Interval_ComeOn_Removed$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "ComeOn Comparison (Removed)",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_ComeOn_Removed $Interval,y=BookComparison_ComeOn_Removed $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_ComeOn_Removed $Interval,y=BookComparison_ComeOn_Removed $ActProb,type="o",col="red" )
+
+#Interwetten.es Graph
+plot(x=((match_detail_Interval_Interwetten_Removed$Prob_odd1 - match_detail_Interval_Interwetten_Removed$Prob_odd2)+1)*5,y=match_detail_Interval_Interwetten_Removed$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "Interwetten.es Comparison (Removed)",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_Interwetten_Removed $Interval,y=BookComparison_Interwetten_Removed $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_Interwetten_Removed $Interval,y=BookComparison_Interwetten_Removed $ActProb,type="o",col="red" )
+
+#Jetbull Graph
+plot(x=((match_detail_Interval_Jetbull_Removed$Prob_odd1 - match_detail_Interval_Jetbull_Removed$Prob_odd2)+1)*5,y=match_detail_Interval_Jetbull_Removed$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "JetBull Comparison (Removed)",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_Jetbull_Removed $Interval,y=BookComparison_Jetbull_Removed $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_Jetbull_Removed $Interval,y=BookComparison_Jetbull_Removed $ActProb,type="o",col="red" )
+
+#Titanbet Graph
+plot(x=((match_detail_Interval_Titanbet_Removed$Prob_odd1 - match_detail_Interval_Titanbet_Removed$Prob_odd2)+1)*5,y=match_detail_Interval_Titanbet_Removed$Prob_oddx, xlab = "Interval", ylab = "Prob", pch = 1, col="gray",main = "Titanbet Comparison (Removed)",xlim = c(-1,12),ylim = c(0,0.45), frame = FALSE)
+
+lines(x=BookComparison_Titanbet_Removed $Interval,y=BookComparison_Titanbet_Removed $AVerage,col="blue",type="o")       
+
+lines(x=BookComparison_Titanbet_Removed $Interval,y=BookComparison_Titanbet_Removed $ActProb,type="o",col="red" )
+#Plot below shows that output is similar to Task 2.4 . There is no significant change
+odbcCloseAll()
+```
+
+
