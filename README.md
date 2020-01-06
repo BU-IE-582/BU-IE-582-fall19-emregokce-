@@ -8,5 +8,9 @@
 
 [Here Find my Hw4 html file](Hw4_v2.html)
 
+[Here Find my Hw4 html file](IE582Project.html)
+
+[Here Find my Hw4 ipynb file](Project 1.ipynb)
+
 # BU-IE-582-fall19-emregokce-
 fall19-emregokceboun created by GitHub Classroom
